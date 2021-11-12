@@ -1,0 +1,65 @@
+apiVersion: galasa.dev/v2alpha1
+kind: GalasaEcosystem
+metadata:
+  name: test
+  namespace: jdavies47
+spec:
+  hostname: "http://cicsk8sm.hursley.ibm.com"
+  galasaVersion: "0.18.0"
+  busyboxImage: nexus.cics-ts.hur.hdclab.intranet.ibm.com:8080/library/busybox:latest
+  serviceSpec:
+    cps: 
+      image: quay.io/coreos/etcd:v3.4.3
+      imagePullPolicy: Always
+      storage: 1Gi
+      storageClassName: rbd
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    ras: 
+      image: nexus.cics-ts.hur.hdclab.intranet.ibm.com:8080/library/couchdb:2.3.1
+      imagePullPolicy: Always
+      storage: 1Gi
+      storageClassName: rbd
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    apiServer: 
+      image: nexus.cics-ts.hur.hdclab.intranet.ibm.com:8080/galasadev/galasa-boot-embedded-amd64:main
+      imagePullPolicy: Always
+      storage: 1Gi
+      storageClassName: rbd
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    enginecontroller: 
+      image: nexus.cics-ts.hur.hdclab.intranet.ibm.com:8080/galasadev/galasa-boot-embedded-amd64:main
+      imagePullPolicy: Always
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    resmon: 
+      image: nexus.cics-ts.hur.hdclab.intranet.ibm.com:8080/galasadev/galasa-boot-embedded-amd64:main
+      imagePullPolicy: Always
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    metrics: 
+      image: nexus.cics-ts.hur.hdclab.intranet.ibm.com:8080/galasadev/galasa-boot-embedded-amd64:main
+      imagePullPolicy: Always
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    grafana: 
+      image: grafana/grafana:latest
+      imagePullPolicy: Always
+      storage: 1Gi
+      storageClassName: rbd
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    prometheus: 
+      image: prom/prometheus:latest
+      imagePullPolicy: Always
+      storage: 1Gi
+      storageClassName: rbd
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+    simbank: 
+      image: docker.galasa.dev/galasa-simplatform-amd64:0.18.0
+      imagePullPolicy: Always
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
