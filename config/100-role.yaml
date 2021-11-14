@@ -59,7 +59,7 @@ rules:
   - "galasaapicomponents"
   - "galasametricscomponents"
   - "galasaenginecontrollercomponents"
-  - "toolboxcomponents"
+  - "galasatoolboxcomponents"
   verbs:
   - create
   - delete

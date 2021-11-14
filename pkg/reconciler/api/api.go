@@ -20,7 +20,7 @@ type Reconciler struct {
 	GalasaEcosystemLister    galasaecosystemlisters.GalasaEcosystemLister
 }
 
-func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaApi) pkgreconciler.Event {
+func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaApiComponent) pkgreconciler.Event {
 	logger := logging.FromContext(ctx)
 	logger.Infof("Hello World")
 	return nil

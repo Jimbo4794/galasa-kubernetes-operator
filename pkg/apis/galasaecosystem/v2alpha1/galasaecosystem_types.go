@@ -20,18 +20,28 @@ type GalasaEcosystem struct {
 }
 
 type GalasaEcosystemSpec struct {
-	Hostname       string                   `json:"hostname"`
-	GalasaVersion  string                   `json:"galasaVersion"`
+	Hostname      string `json:"hostname"`
+	GalasaVersion string `json:"galasaVersion"`
+	// +optional
 	BusyboxImage   string                   `json:"busyboxImage"`
 	ComponentsSpec map[string]ComponentSpec `json:"componentsSpec"`
 }
 
 type ComponentSpec struct {
-	Image            string            `json:"image"`
-	ImagePullPolicy  string            `json:"imagePullPolicy"`
-	Storage          string            `json:"storage"`
-	StorageClassName string            `json:"storageClassName"`
-	NodeSelector     map[string]string `json:"nodeSelector"`
+	Image string `json:"image"`
+	// +optional
+	ImagePullPolicy string `json:"imagePullPolicy"`
+	// +optional
+	Storage string `json:"storage"`
+	// +optional
+	StorageClassName string `json:"storageClassName"`
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector"`
+}
+
+type ComponentInterface interface {
+	IsReady() bool
+	HasChanged(spec ComponentSpec) bool
 }
 
 type GalasaEcosystemStatus struct {
