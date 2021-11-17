@@ -16,7 +16,7 @@ type GalasaToolboxComponent struct {
 	Spec ToolboxSpec `json:"spec,omitempty"`
 
 	// +optional
-	Status GalasaEcosystemStatus `json:"status,omitempty"`
+	Status ComponentStatus `json:"status,omitempty"`
 }
 
 type ToolboxSpec struct {
@@ -30,10 +30,6 @@ type ToolboxSpec struct {
 	Jenkins ComponentSpec `json:"Jenkins"`
 	// +optional
 	Nexus ComponentSpec `json:"Nexus"`
-}
-
-type GalasaToolboxComponentStatus struct {
-	Ready bool `json:"ready"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

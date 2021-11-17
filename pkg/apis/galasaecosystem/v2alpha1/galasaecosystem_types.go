@@ -1,7 +1,10 @@
 package v2alpha1
 
 import (
+	"context"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // +genclient
@@ -37,11 +40,21 @@ type ComponentSpec struct {
 	StorageClassName string `json:"storageClassName"`
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector"`
+	// +optional
+	ComponentParms map[string]string `json:"componentParms"`
+}
+
+type ComponentStatus struct {
+	Ready       bool              `json:"ready"`
+	StatusParms map[string]string `json:"statusParms"`
 }
 
 type ComponentInterface interface {
-	IsReady() bool
+	IsReady(context.Context) bool
+
 	HasChanged(spec ComponentSpec) bool
+
+	GetObjects() []runtime.Object
 }
 
 type GalasaEcosystemStatus struct {

@@ -1,20 +1,70 @@
 package enginecontroller
 
-import "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/apis/galasaecosystem/v2alpha1"
+import (
+	"context"
+	"reflect"
+
+	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/apis/galasaecosystem/v2alpha1"
+	galasaecosystem "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/clientset/versioned"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+)
 
 type EngineController struct {
+	Ecosystemclient galasaecosystem.Interface
+	Name            string
+	Namespace       string
+
 	Image           string
 	ImagePullPolicy string
 	NodeSelector    map[string]string
+	Owner           []v1.OwnerReference
+	Bootstrap       string
+	Status          v2alpha1.ComponentStatus
 }
 
-func New(engineControllerCrd *v2alpha1.GalasaEngineControllerComponent) *EngineController {
-	return &EngineController{}
+func New(engineControllerCrd *v2alpha1.GalasaEngineControllerComponent, k galasaecosystem.Interface) *EngineController {
+	return &EngineController{
+		Ecosystemclient: k,
+		Namespace:       engineControllerCrd.Namespace,
+		Name:            engineControllerCrd.Name,
+		Image:           engineControllerCrd.Spec.Image,
+		ImagePullPolicy: engineControllerCrd.Spec.ImagePullPolicy,
+		NodeSelector:    engineControllerCrd.Spec.NodeSelector,
+		Owner:           engineControllerCrd.OwnerReferences,
+		Bootstrap:       engineControllerCrd.Spec.ComponentParms["bootstrap"],
+
+		Status: v2alpha1.ComponentStatus{
+			Ready: engineControllerCrd.Status.Ready,
+		},
+	}
 }
 
 func (c *EngineController) HasChanged(spec v2alpha1.ComponentSpec) bool {
+	if c.Image != spec.Image {
+		return true
+	}
+	if c.ImagePullPolicy != spec.ImagePullPolicy {
+		return true
+	}
+	if reflect.DeepEqual(c.NodeSelector, spec.NodeSelector) {
+		return true
+	}
 	return false
 }
-func (c *EngineController) IsReady() bool {
-	return true
+func (c *EngineController) IsReady(ctx context.Context) bool {
+	ec, err := c.Ecosystemclient.GalasaV2alpha1().GalasaEngineControllerComponents(c.Namespace).Get(ctx, c.Name, v1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return ec.Status.Ready
+}
+func (c *EngineController) GetObjects() []runtime.Object {
+	var objects []runtime.Object
+
+	objects = append(objects, c.getControllerConfig())
+	objects = append(objects, c.getInternalService())
+	objects = append(objects, c.getDeployment())
+
+	return objects
 }

@@ -32,6 +32,14 @@ type Reconciler struct {
 	GalasaEngineControllerLister galasaecosystemlisters.GalasaEngineControllerComponentLister
 	GalasaMetricsLister          galasaecosystemlisters.GalasaMetricsComponentLister
 	GalasaToolboxLister          galasaecosystemlisters.GalasaToolboxComponentLister
+
+	Cps              *v2alpha1.GalasaCpsComponent
+	Ras              *v2alpha1.GalasaRasComponent
+	Api              *v2alpha1.GalasaApiComponent
+	Metrics          *v2alpha1.GalasaMetricsComponent
+	Resmon           *v2alpha1.GalasaResmonComponent
+	EngineController *v2alpha1.GalasaEngineControllerComponent
+	Toolbox          *v2alpha1.GalasaToolboxComponent
 }
 
 func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEcosystem) pkgreconciler.Event {
@@ -39,103 +47,40 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEcosys
 	logger := logging.FromContext(ctx)
 	selector := labels.NewSelector().Add(mustNewRequirement("galasa-ecosystem-name", selection.Equals, []string{p.Name}))
 
-	logger.Info("Managing cps")
+	logger.Info("Managing CPS")
 	err := c.ManageCps(ctx, p, selector)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("Managing ras")
+	logger.Info("Managing RAS")
 	err = c.ManageRas(ctx, p, selector)
 	if err != nil {
 		return err
 	}
 
+	logger.Info("Managing API")
 	err = c.ManageApi(ctx, p, selector)
 	if err != nil {
 		return err
 	}
 
+	logger.Info("Managing Metrics")
 	err = c.ManageMetrics(ctx, p, selector)
 	if err != nil {
 		return err
 	}
 
+	logger.Info("Managing EC")
 	err = c.ManageEngineController(ctx, p, selector)
 	if err != nil {
 		return err
 	}
 
+	logger.Info("Managing Resmon")
 	err = c.ManageResmon(ctx, p, selector)
 	if err != nil {
 		return err
-	}
-
-	/**
-	TODO logic
-	This Reconcile is moslty about big picture stuff and will be looking at componets, creating if requires and ensureing status updates
-	The big "logic" bit is ensuring that the reconciler does no work if certain status are not ready
-	The individual controllers will be responsible for bring up there components
-
-	So steps:
-	1. Check for CPS CRD owned by this ecosystem, create if none
-	2. Check CPS status, if not ready requeue
-	3. Check for RAS CRD owned by this ecosystem, create if none
-	4. Check status if not ready, requeue
-	5. Check for API CRD owned by this ecosystem, create if non
-	6. Check status of API, requeue is not ready
-	7. Check all other CRD's exist, create if missing
-	8 Update status of ecosystem based on status of all CRDS
-	*/
-
-	raslist, err := c.GalasaRASLister.List(selector)
-	if err != nil {
-		return controller.NewPermanentError(fmt.Errorf("failed to retrieve ras: %v", err))
-	}
-	if len(raslist) == 0 {
-		// Create Ras CRD
-	} else {
-		// Check ready/requeue
-	}
-
-	apilist, err := c.GalasaAPILister.List(selector)
-	if err != nil {
-		return controller.NewPermanentError(fmt.Errorf("failed to retrieve api: %v", err))
-	}
-	if len(apilist) == 0 {
-		// Create api CRD
-	} else {
-		// Check ready/requeue
-	}
-
-	// Create the rest if not created
-	metricslist, err := c.GalasaMetricsLister.List(selector)
-	if err != nil {
-		return controller.NewPermanentError(fmt.Errorf("failed to retrieve metrics: %v", err))
-	}
-	if len(metricslist) == 0 {
-		// Create api CRD
-	}
-	resmonlist, err := c.GalasaResmonLister.List(selector)
-	if err != nil {
-		return controller.NewPermanentError(fmt.Errorf("failed to retrieve resmon: %v", err))
-	}
-	if len(resmonlist) == 0 {
-		// Create api CRD
-	}
-	enginecontrollerlist, err := c.GalasaEngineControllerLister.List(selector)
-	if err != nil {
-		return controller.NewPermanentError(fmt.Errorf("failed to retrieve enginecontroller: %v", err))
-	}
-	if len(enginecontrollerlist) == 0 {
-		// Create api CRD
-	}
-	toolboxlist, err := c.GalasaToolboxLister.List(selector)
-	if err != nil {
-		return controller.NewPermanentError(fmt.Errorf("failed to retrieve toolbox: %v", err))
-	}
-	if len(toolboxlist) == 0 {
-		// Create api CRD
 	}
 
 	return nil
@@ -147,10 +92,10 @@ func (c *Reconciler) ManageCps(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 	if err != nil {
 		return controller.NewPermanentError(fmt.Errorf("failed to retrieve cps: %v", err))
 	}
-	l.Infof("CpsList: %v", cpslist)
 
 	cpsSpec := p.Spec.ComponentsSpec["cps"]
 	if len(cpslist) == 0 {
+		l.Infof("No CPS detected, creating CRD")
 		// Create CPS CRD
 		t := true
 		cps := &v2alpha1.GalasaCpsComponent{
@@ -177,35 +122,42 @@ func (c *Reconciler) ManageCps(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 				Storage:          cpsSpec.Storage,
 				StorageClassName: cpsSpec.StorageClassName,
 				NodeSelector:     cpsSpec.NodeSelector,
+				ComponentParms: map[string]string{
+					"hostname": p.Spec.Hostname,
+				},
 			},
 		}
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaCpsComponents(p.Namespace).Create(ctx, cps, v1.CreateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaCpsComponents(p.Namespace).Create(ctx, cps, v1.CreateOptions{})
+		c.Cps = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to create cps: %v", err))
 		}
 		return controller.NewRequeueAfter(5 * time.Second)
 	}
-	// Check changes, ready, requeue
-	// Coming back to the changes from here
+	l.Infof("CPS detected, checking state")
 	if len(cpslist) > 1 {
 		return controller.NewPermanentError(fmt.Errorf("too many cps's defined!"))
 	}
-	cps := ecosystem.Cps(cpslist[0])
-	if !cps.IsReady() {
+	cps := ecosystem.Cps(cpslist[0], c.GalasaEcosystemClientSet)
+	if !cps.IsReady(ctx) {
+		l.Infof("CPS not ready, waiting, %s", cpslist[0].Status)
 		return controller.NewRequeueAfter(time.Second * 5)
 	}
 	if cps.HasChanged(cpsSpec) {
+		l.Infof("CPS changes detected")
 		cpsUpdate := cpslist[0]
 		cpsUpdate.Spec.Image = cpsSpec.Image
 		cpsUpdate.Spec.ImagePullPolicy = cpsSpec.ImagePullPolicy
 		cpsUpdate.Spec.Storage = cpsSpec.Storage
 		cpsUpdate.Spec.StorageClassName = cpsSpec.StorageClassName
 		cpsUpdate.Spec.NodeSelector = cpsSpec.NodeSelector
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaCpsComponents(p.Namespace).Update(ctx, cpsUpdate, v1.UpdateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaCpsComponents(p.Namespace).Update(ctx, cpsUpdate, v1.UpdateOptions{})
+		c.Cps = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to update cps: %v", err))
 		}
 	}
+	l.Infof("CPS finished, ending")
 	return nil
 }
 
@@ -246,7 +198,8 @@ func (c *Reconciler) ManageRas(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 				NodeSelector:     rasSpec.NodeSelector,
 			},
 		}
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaRasComponents(p.Namespace).Create(ctx, ras, v1.CreateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaRasComponents(p.Namespace).Create(ctx, ras, v1.CreateOptions{})
+		c.Ras = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to create ras: %v", err))
 		}
@@ -257,8 +210,8 @@ func (c *Reconciler) ManageRas(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 	if len(raslist) > 1 {
 		return controller.NewPermanentError(fmt.Errorf("too many ras's defined!"))
 	}
-	ras := ecosystem.Ras(raslist[0])
-	if !ras.IsReady() {
+	ras := ecosystem.Ras(raslist[0], c.GalasaEcosystemClientSet)
+	if !ras.IsReady(ctx) {
 		return controller.NewRequeueAfter(time.Second * 5)
 	}
 	if ras.HasChanged(rasSpec) {
@@ -268,7 +221,8 @@ func (c *Reconciler) ManageRas(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 		rasUpdate.Spec.Storage = rasSpec.Storage
 		rasUpdate.Spec.StorageClassName = rasSpec.StorageClassName
 		rasUpdate.Spec.NodeSelector = rasSpec.NodeSelector
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaRasComponents(p.Namespace).Update(ctx, rasUpdate, v1.UpdateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaRasComponents(p.Namespace).Update(ctx, rasUpdate, v1.UpdateOptions{})
+		c.Ras = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to update ras: %v", err))
 		}
@@ -277,6 +231,7 @@ func (c *Reconciler) ManageRas(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 }
 
 func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem, selector labels.Selector) error {
+	logger := logging.FromContext(ctx)
 	apilist, err := c.GalasaAPILister.List(selector)
 	if err != nil {
 		return controller.NewPermanentError(fmt.Errorf("failed to retrieve api: %v", err))
@@ -284,6 +239,7 @@ func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 
 	apiSpec := p.Spec.ComponentsSpec["api"]
 	if len(apilist) == 0 {
+		logger.Info("Creating API")
 		// Create API CRD
 		t := true
 		api := &v2alpha1.GalasaApiComponent{
@@ -310,9 +266,15 @@ func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 				Storage:          apiSpec.Storage,
 				StorageClassName: apiSpec.StorageClassName,
 				NodeSelector:     apiSpec.NodeSelector,
+				ComponentParms: map[string]string{
+					"busyboxImage": p.Spec.BusyboxImage,
+					"hostname":     p.Spec.Hostname,
+					"cpsuri":       c.Cps.Status.StatusParms["cpsuri"],
+				},
 			},
 		}
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaApiComponents(p.Namespace).Create(ctx, api, v1.CreateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaApiComponents(p.Namespace).Create(ctx, api, v1.CreateOptions{})
+		c.Api = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to create api: %v", err))
 		}
@@ -323,8 +285,8 @@ func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 	if len(apilist) > 1 {
 		return controller.NewPermanentError(fmt.Errorf("too many api's defined!"))
 	}
-	api := ecosystem.Api(apilist[0])
-	if !api.IsReady() {
+	api := ecosystem.Api(apilist[0], c.GalasaEcosystemClientSet)
+	if !api.IsReady(ctx) {
 		return controller.NewRequeueAfter(time.Second * 5)
 	}
 	if api.HasChanged(apiSpec) {
@@ -334,7 +296,8 @@ func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 		apiUpdate.Spec.Storage = apiSpec.Storage
 		apiUpdate.Spec.StorageClassName = apiSpec.StorageClassName
 		apiUpdate.Spec.NodeSelector = apiSpec.NodeSelector
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaApiComponents(p.Namespace).Update(ctx, apiUpdate, v1.UpdateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaApiComponents(p.Namespace).Update(ctx, apiUpdate, v1.UpdateOptions{})
+		c.Api = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to update api: %v", err))
 		}
@@ -378,7 +341,8 @@ func (c *Reconciler) ManageMetrics(ctx context.Context, p *v2alpha1.GalasaEcosys
 				NodeSelector:    metricsSpec.NodeSelector,
 			},
 		}
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaMetricsComponents(p.Namespace).Create(ctx, metrics, v1.CreateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaMetricsComponents(p.Namespace).Create(ctx, metrics, v1.CreateOptions{})
+		c.Metrics = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to create metrics: %v", err))
 		}
@@ -389,8 +353,8 @@ func (c *Reconciler) ManageMetrics(ctx context.Context, p *v2alpha1.GalasaEcosys
 	if len(metricslist) > 1 {
 		return controller.NewPermanentError(fmt.Errorf("too many metrics's defined!"))
 	}
-	metrics := ecosystem.Metrics(metricslist[0])
-	if !metrics.IsReady() {
+	metrics := ecosystem.Metrics(metricslist[0], c.GalasaEcosystemClientSet)
+	if !metrics.IsReady(ctx) {
 		return nil
 	}
 	if metrics.HasChanged(metricsSpec) {
@@ -398,7 +362,8 @@ func (c *Reconciler) ManageMetrics(ctx context.Context, p *v2alpha1.GalasaEcosys
 		metricsUpdate.Spec.Image = metricsSpec.Image
 		metricsUpdate.Spec.ImagePullPolicy = metricsSpec.ImagePullPolicy
 		metricsUpdate.Spec.NodeSelector = metricsSpec.NodeSelector
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaMetricsComponents(p.Namespace).Update(ctx, metricsUpdate, v1.UpdateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaMetricsComponents(p.Namespace).Update(ctx, metricsUpdate, v1.UpdateOptions{})
+		c.Metrics = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to update metrics: %v", err))
 		}
@@ -442,7 +407,8 @@ func (c *Reconciler) ManageResmon(ctx context.Context, p *v2alpha1.GalasaEcosyst
 				NodeSelector:    resmonSpec.NodeSelector,
 			},
 		}
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaResmonComponents(p.Namespace).Create(ctx, resmon, v1.CreateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaResmonComponents(p.Namespace).Create(ctx, resmon, v1.CreateOptions{})
+		c.Resmon = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to create resmon: %v", err))
 		}
@@ -453,8 +419,8 @@ func (c *Reconciler) ManageResmon(ctx context.Context, p *v2alpha1.GalasaEcosyst
 	if len(resmonlist) > 1 {
 		return controller.NewPermanentError(fmt.Errorf("too many resmon's defined!"))
 	}
-	resmon := ecosystem.Resmon(resmonlist[0])
-	if !resmon.IsReady() {
+	resmon := ecosystem.Resmon(resmonlist[0], c.GalasaEcosystemClientSet)
+	if !resmon.IsReady(ctx) {
 		return nil
 	}
 	if resmon.HasChanged(resmonSpec) {
@@ -462,7 +428,8 @@ func (c *Reconciler) ManageResmon(ctx context.Context, p *v2alpha1.GalasaEcosyst
 		resmonUpdate.Spec.Image = resmonSpec.Image
 		resmonUpdate.Spec.ImagePullPolicy = resmonSpec.ImagePullPolicy
 		resmonUpdate.Spec.NodeSelector = resmonSpec.NodeSelector
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaResmonComponents(p.Namespace).Update(ctx, resmonUpdate, v1.UpdateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaResmonComponents(p.Namespace).Update(ctx, resmonUpdate, v1.UpdateOptions{})
+		c.Resmon = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to update resmon: %v", err))
 		}
@@ -506,7 +473,8 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 				NodeSelector:    enginecontrollerSpec.NodeSelector,
 			},
 		}
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).Create(ctx, enginecontroller, v1.CreateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).Create(ctx, enginecontroller, v1.CreateOptions{})
+		c.EngineController = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to create enginecontroller: %v", err))
 		}
@@ -517,8 +485,8 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 	if len(enginecontrollerlist) > 1 {
 		return controller.NewPermanentError(fmt.Errorf("too many enginecontroller's defined!"))
 	}
-	enginecontroller := ecosystem.EngineController(enginecontrollerlist[0])
-	if !enginecontroller.IsReady() {
+	enginecontroller := ecosystem.EngineController(enginecontrollerlist[0], c.GalasaEcosystemClientSet)
+	if !enginecontroller.IsReady(ctx) {
 		return nil
 	}
 	if enginecontroller.HasChanged(enginecontrollerSpec) {
@@ -526,7 +494,8 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 		enginecontrollerUpdate.Spec.Image = enginecontrollerSpec.Image
 		enginecontrollerUpdate.Spec.ImagePullPolicy = enginecontrollerSpec.ImagePullPolicy
 		enginecontrollerUpdate.Spec.NodeSelector = enginecontrollerSpec.NodeSelector
-		_, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).Update(ctx, enginecontrollerUpdate, v1.UpdateOptions{})
+		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).Update(ctx, enginecontrollerUpdate, v1.UpdateOptions{})
+		c.EngineController = i
 		if err != nil {
 			return controller.NewPermanentError(fmt.Errorf("failed to update enginecontroller: %v", err))
 		}

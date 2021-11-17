@@ -16,11 +16,7 @@ type GalasaEngineControllerComponent struct {
 	Spec ComponentSpec `json:"spec,omitempty"`
 
 	// +optional
-	Status GalasaEcosystemStatus `json:"status,omitempty"`
-}
-
-type GalasaEngineControllerComponentStatus struct {
-	Ready bool `json:"ready"`
+	Status ComponentStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

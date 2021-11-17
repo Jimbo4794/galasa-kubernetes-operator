@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/reconciler/api"
 	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/reconciler/cps"
 	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/reconciler/enginecontroller"
 	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/reconciler/galasaecosystem"
@@ -54,6 +55,7 @@ func main() {
 		galasaecosystem.NewController(*namespace),
 		cps.NewController(*namespace),
 		ras.NewController(*namespace),
+		api.NewController(*namespace),
 		enginecontroller.NewController(*namespace),
 		metrics.NewController(*namespace),
 		resmon.NewController(*namespace),
