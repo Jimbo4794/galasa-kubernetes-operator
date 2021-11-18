@@ -17,6 +17,7 @@ type Api struct {
 
 	BusyboxImage     string
 	Image            string
+	Replicas         *int32
 	ImagePullPolicy  string
 	Storage          string
 	StorageClassName string
@@ -35,6 +36,7 @@ func New(apiCrd *v2alpha1.GalasaApiComponent, k galasaecosystem.Interface) *Api 
 		BusyboxImage:     apiCrd.Spec.ComponentParms["busyboxImage"],
 		CPSUri:           apiCrd.Spec.ComponentParms["cpsuri"],
 		Image:            apiCrd.Spec.Image,
+		Replicas:         apiCrd.Spec.Replicas,
 		ImagePullPolicy:  apiCrd.Spec.ImagePullPolicy,
 		Storage:          apiCrd.Spec.Storage,
 		StorageClassName: apiCrd.Spec.StorageClassName,

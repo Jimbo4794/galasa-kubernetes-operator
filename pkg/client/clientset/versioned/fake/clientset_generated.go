@@ -61,10 +61,7 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 	return c.tracker
 }
 
-var (
-	_ clientset.Interface = &Clientset{}
-	_ testing.FakeClient  = &Clientset{}
-)
+var _ clientset.Interface = &Clientset{}
 
 // GalasaV2alpha1 retrieves the GalasaV2alpha1Client
 func (c *Clientset) GalasaV2alpha1() galasav2alpha1.GalasaV2alpha1Interface {

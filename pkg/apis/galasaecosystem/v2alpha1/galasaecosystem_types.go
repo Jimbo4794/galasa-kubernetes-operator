@@ -31,7 +31,8 @@ type GalasaEcosystemSpec struct {
 }
 
 type ComponentSpec struct {
-	Image string `json:"image"`
+	Image    string `json:"image"`
+	Replicas *int32 `json:"replicas"`
 	// +optional
 	ImagePullPolicy string `json:"imagePullPolicy"`
 	// +optional

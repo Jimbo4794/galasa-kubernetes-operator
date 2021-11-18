@@ -6,7 +6,7 @@ import (
 	galasametricsreconciler "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/injection/reconciler/galasaecosystem/v2alpha1/galasametricscomponent"
 
 	galasaecosystemclient "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/injection/client"
-	galasaecosystemformer "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/injection/informers/galasaecosystem/v2alpha1/galasaecosystem"
+	galasametricsinformer "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/injection/informers/galasaecosystem/v2alpha1/galasametricscomponent"
 
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	"knative.dev/pkg/configmap"
@@ -21,12 +21,12 @@ func NewController(namespace string) func(ctx context.Context, cmw configmap.Wat
 
 		kubeclientset := kubeclient.Get(ctx)
 		clientset := galasaecosystemclient.Get(ctx)
-		informer := galasaecosystemformer.Get(ctx)
+		metricsinformer := galasametricsinformer.Get(ctx)
 
 		c := &Reconciler{
 			KubeClientSet:            kubeclientset,
 			GalasaEcosystemClientSet: clientset,
-			GalasaEcosystemLister:    informer.Lister(),
+			GalasaMetricsLister:      metricsinformer.Lister(),
 		}
 
 		impl := galasametricsreconciler.NewImpl(ctx, c, func(impl *controller.Impl) controller.Options {
@@ -35,7 +35,7 @@ func NewController(namespace string) func(ctx context.Context, cmw configmap.Wat
 			}
 		})
 
-		informer.Informer().AddEventHandler(controller.HandleAll(impl.Enqueue))
+		metricsinformer.Informer().AddEventHandler(controller.HandleAll(impl.Enqueue))
 
 		return impl
 	}

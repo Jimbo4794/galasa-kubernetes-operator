@@ -16,6 +16,7 @@ type EngineController struct {
 	Namespace       string
 
 	Image           string
+	Replicas        *int32
 	ImagePullPolicy string
 	NodeSelector    map[string]string
 	Owner           []v1.OwnerReference
@@ -29,6 +30,7 @@ func New(engineControllerCrd *v2alpha1.GalasaEngineControllerComponent, k galasa
 		Namespace:       engineControllerCrd.Namespace,
 		Name:            engineControllerCrd.Name,
 		Image:           engineControllerCrd.Spec.Image,
+		Replicas:        engineControllerCrd.Spec.Replicas,
 		ImagePullPolicy: engineControllerCrd.Spec.ImagePullPolicy,
 		NodeSelector:    engineControllerCrd.Spec.NodeSelector,
 		Owner:           engineControllerCrd.OwnerReferences,

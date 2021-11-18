@@ -10,7 +10,6 @@ import (
 )
 
 func (c *Api) getDeployment() *appsv1.Deployment {
-	replicas := int32(1)
 	labels := map[string]string{
 		"app": c.Name,
 	}
@@ -22,7 +21,7 @@ func (c *Api) getDeployment() *appsv1.Deployment {
 			OwnerReferences: c.Owner,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
+			Replicas: c.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},

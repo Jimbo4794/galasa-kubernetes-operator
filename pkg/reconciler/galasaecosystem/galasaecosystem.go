@@ -47,8 +47,23 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEcosys
 	logger := logging.FromContext(ctx)
 	selector := labels.NewSelector().Add(mustNewRequirement("galasa-ecosystem-name", selection.Equals, []string{p.Name}))
 
+	// Validate
+	logger.Infof("Validating")
+	err := v2alpha1.Validate(p)
+	if err != nil {
+		return controller.NewPermanentError(err)
+	}
+	// Defaults
+	logger.Infof("Setting defaults")
+	p.SetDefaults(ctx)
+	_, err = c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEcosystems(p.Namespace).Update(ctx, p, v1.UpdateOptions{})
+	if err != nil {
+		return controller.NewPermanentError(fmt.Errorf("Failed to apply defaults"))
+	}
+
+	// Reconcile
 	logger.Info("Managing CPS")
-	err := c.ManageCps(ctx, p, selector)
+	err = c.ManageCps(ctx, p, selector)
 	if err != nil {
 		return err
 	}
@@ -471,6 +486,9 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 				Image:           enginecontrollerSpec.Image,
 				ImagePullPolicy: enginecontrollerSpec.ImagePullPolicy,
 				NodeSelector:    enginecontrollerSpec.NodeSelector,
+				ComponentParms: map[string]string{
+					"bootstrap": c.Api.Status.StatusParms["bootstrap"],
+				},
 			},
 		}
 		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).Create(ctx, enginecontroller, v1.CreateOptions{})

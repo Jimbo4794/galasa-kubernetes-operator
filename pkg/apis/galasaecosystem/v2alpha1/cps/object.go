@@ -16,6 +16,7 @@ type Cps struct {
 	Namespace       string
 
 	Image            string
+	Replicas         *int32
 	ImagePullPolicy  string
 	Storage          string
 	StorageClassName string
@@ -30,6 +31,7 @@ func New(cpsCrd *v2alpha1.GalasaCpsComponent, k galasaecosystem.Interface) *Cps 
 		Namespace:        cpsCrd.Namespace,
 		Name:             cpsCrd.Name,
 		Image:            cpsCrd.Spec.Image,
+		Replicas:         cpsCrd.Spec.Replicas,
 		ImagePullPolicy:  cpsCrd.Spec.ImagePullPolicy,
 		Storage:          cpsCrd.Spec.Storage,
 		StorageClassName: cpsCrd.Spec.StorageClassName,

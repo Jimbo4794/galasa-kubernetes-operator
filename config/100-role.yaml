@@ -60,6 +60,14 @@ rules:
   - "galasametricscomponents"
   - "galasaenginecontrollercomponents"
   - "galasatoolboxcomponents"
+  - "galasacpscomponents/status"
+  - "galasaecosystems/status"
+  - "galasarascomponents/status"
+  - "galasaresmoncomponents/status"
+  - "galasaapicomponents/status"
+  - "galasametricscomponents/status"
+  - "galasaenginecontrollercomponents/status"
+  - "galasatoolboxcomponents/status"
   verbs:
   - create
   - delete

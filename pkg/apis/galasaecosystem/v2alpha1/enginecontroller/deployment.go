@@ -9,18 +9,18 @@ import (
 )
 
 func (c *EngineController) getDeployment() *appsv1.Deployment {
-	replicas := int32(1)
 	labels := map[string]string{
 		"app": c.Name,
 	}
 	s := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      c.Name,
-			Namespace: c.Namespace,
-			Labels:    labels,
+			Name:            c.Name,
+			Namespace:       c.Namespace,
+			Labels:          labels,
+			OwnerReferences: c.Owner,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
+			Replicas: c.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -93,7 +93,7 @@ func (c *EngineController) getDeployment() *appsv1.Deployment {
 							},
 						},
 					},
-					ServiceAccountName: "galasa-ecosystem-kubernetes-operator",
+					ServiceAccountName: "galasa-ecosystem-operator",
 				},
 			},
 		},

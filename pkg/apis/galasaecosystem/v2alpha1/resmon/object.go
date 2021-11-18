@@ -2,6 +2,7 @@ package resmon
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/apis/galasaecosystem/v2alpha1"
 	galasaecosystem "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/clientset/versioned"
@@ -14,25 +15,58 @@ type Resmon struct {
 	Name            string
 	Namespace       string
 
-	Image            string
-	ImagePullPolicy  string
-	Storage          string
-	StorageClassName string
-	NodeSelector     map[string]string
-	Owner            []v1.OwnerReference
-	Status           v2alpha1.ComponentStatus
+	Image           string
+	Replicas        *int32
+	ImagePullPolicy string
+	NodeSelector    map[string]string
+	Owner           []v1.OwnerReference
+	Bootstrap       string
+	Status          v2alpha1.ComponentStatus
 }
 
 func New(resmonCrd *v2alpha1.GalasaResmonComponent, k galasaecosystem.Interface) *Resmon {
-	return &Resmon{}
+	return &Resmon{
+		Ecosystemclient: k,
+		Namespace:       resmonCrd.Namespace,
+		Name:            resmonCrd.Name,
+		Image:           resmonCrd.Spec.Image,
+		Replicas:        resmonCrd.Spec.Replicas,
+		ImagePullPolicy: resmonCrd.Spec.ImagePullPolicy,
+		NodeSelector:    resmonCrd.Spec.NodeSelector,
+		Owner:           resmonCrd.OwnerReferences,
+		Bootstrap:       resmonCrd.Spec.ComponentParms["bootstrap"],
+
+		Status: v2alpha1.ComponentStatus{
+			Ready: resmonCrd.Status.Ready,
+		},
+	}
 }
 
 func (c *Resmon) HasChanged(spec v2alpha1.ComponentSpec) bool {
+	if c.Image != spec.Image {
+		return true
+	}
+	if c.ImagePullPolicy != spec.ImagePullPolicy {
+		return true
+	}
+	if reflect.DeepEqual(c.NodeSelector, spec.NodeSelector) {
+		return true
+	}
 	return false
 }
 func (c *Resmon) IsReady(ctx context.Context) bool {
-	return true
+	resmon, err := c.Ecosystemclient.GalasaV2alpha1().GalasaResmonComponents(c.Namespace).Get(ctx, c.Name, v1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return resmon.Status.Ready
 }
 func (c *Resmon) GetObjects() []runtime.Object {
-	return nil
+	var objects []runtime.Object
+
+	objects = append(objects, c.getExposedService())
+	objects = append(objects, c.getInternalService())
+	objects = append(objects, c.getDeployment())
+
+	return objects
 }

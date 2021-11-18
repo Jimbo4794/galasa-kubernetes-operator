@@ -16,6 +16,7 @@ type Ras struct {
 	Namespace       string
 
 	Image            string
+	Replicas         *int32
 	ImagePullPolicy  string
 	Storage          string
 	StorageClassName string
@@ -30,6 +31,7 @@ func New(rasCrd *v2alpha1.GalasaRasComponent, k galasaecosystem.Interface) *Ras 
 		Namespace:        rasCrd.Namespace,
 		Name:             rasCrd.Name,
 		Image:            rasCrd.Spec.Image,
+		Replicas:         rasCrd.Spec.Replicas,
 		ImagePullPolicy:  rasCrd.Spec.ImagePullPolicy,
 		Storage:          rasCrd.Spec.Storage,
 		StorageClassName: rasCrd.Spec.StorageClassName,

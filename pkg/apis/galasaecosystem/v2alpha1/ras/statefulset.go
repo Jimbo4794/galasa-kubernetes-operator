@@ -10,7 +10,6 @@ import (
 )
 
 func (c *Ras) getStatefulSet() *appsv1.StatefulSet {
-	replicas := int32(1)
 	labels := map[string]string{
 		"app": c.Name,
 	}
@@ -23,7 +22,7 @@ func (c *Ras) getStatefulSet() *appsv1.StatefulSet {
 		},
 		Spec: appsv1.StatefulSetSpec{
 			ServiceName: c.Name + "-internal-service",
-			Replicas:    &replicas,
+			Replicas:    c.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},

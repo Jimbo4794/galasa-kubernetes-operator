@@ -3,7 +3,6 @@ package enginecontroller
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,7 +33,7 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEngine
 	logger := logging.FromContext(ctx)
 	ec := ecosystem.EngineController(p, c.GalasaEcosystemClientSet)
 	objects := ec.GetObjects()
-	logger.Infof("Reconciling API")
+	logger.Infof("Reconciling Engine Controller")
 
 	for _, obj := range objects {
 		switch obj.GetObjectKind().GroupVersionKind() {
@@ -90,20 +89,6 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEngine
 		}
 	}
 	// Status updates
-	var bootstrap string
-	var testcatalog string
-	externalService, err := c.KubeClientSet.CoreV1().Services(p.Namespace).Get(ctx, p.Name+"-external-service", v1.GetOptions{})
-	if err != nil {
-		logger.Warnf("Problem locating external service: %v", err)
-		return controller.NewRequeueAfter(time.Second * 3)
-	}
-	for _, port := range externalService.Spec.Ports {
-		if port.Name == "http" {
-			bootstrap = p.Spec.ComponentParms["hostname"] + ":" + strconv.FormatInt(int64(port.NodePort), 10) + "/bootstrap"
-			testcatalog = p.Spec.ComponentParms["hostname"] + ":" + strconv.FormatInt(int64(port.NodePort), 10) + "/testcatalog"
-		}
-	}
-
 	dep, err := c.KubeClientSet.AppsV1().Deployments(p.Namespace).Get(ctx, p.Name, v1.GetOptions{})
 	if err != nil {
 		return err
@@ -111,10 +96,6 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEngine
 	if dep.Status.ReadyReplicas == 1 {
 		p.Status = v2alpha1.ComponentStatus{
 			Ready: true,
-			StatusParms: map[string]string{
-				"bootstrap":   bootstrap,
-				"testcatalog": testcatalog,
-			},
 		}
 		c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).UpdateStatus(ctx, p, v1.UpdateOptions{})
 		return nil
