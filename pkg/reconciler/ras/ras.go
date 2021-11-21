@@ -3,6 +3,7 @@ package ras
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/apis/galasaecosystem/v2alpha1"
@@ -87,13 +88,31 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaRasCom
 			return controller.NewPermanentError(fmt.Errorf("unexpected type"))
 		}
 	}
+
+	// Status updates
+	var rasuri string
+
+	externalService, err := c.KubeClientSet.CoreV1().Services(p.Namespace).Get(ctx, p.Name+"-external-service", v1.GetOptions{})
+	if err != nil {
+		logger.Warnf("Problem locating external service: %v", err)
+		return controller.NewRequeueAfter(time.Second * 3)
+	}
+	for _, port := range externalService.Spec.Ports {
+		if port.Name == "couchdbport" {
+			rasuri = p.Spec.ComponentParms["hostname"] + ":" + strconv.FormatInt(int64(port.NodePort), 10)
+		}
+	}
+
 	statefulset, err := c.KubeClientSet.AppsV1().StatefulSets(p.Namespace).Get(ctx, p.Name, v1.GetOptions{})
 	if err != nil {
 		return err
 	}
-	if statefulset.Status.ReadyReplicas == 1 {
+	if statefulset.Status.ReadyReplicas == *p.Spec.Replicas {
 		p.Status = v2alpha1.ComponentStatus{
 			Ready: true,
+			StatusParms: map[string]string{
+				"rasuri": rasuri,
+			},
 		}
 		c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaRasComponents(p.Namespace).UpdateStatus(ctx, p, v1.UpdateOptions{})
 		return nil

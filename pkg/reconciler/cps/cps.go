@@ -109,7 +109,7 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaCpsCom
 		return err
 	}
 
-	if statefulset.Status.ReadyReplicas == 1 {
+	if statefulset.Status.ReadyReplicas == *p.Spec.Replicas {
 		p.Status = v2alpha1.ComponentStatus{
 			Ready: true,
 			StatusParms: map[string]string{

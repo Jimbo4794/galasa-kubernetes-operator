@@ -93,7 +93,7 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEngine
 	if err != nil {
 		return err
 	}
-	if dep.Status.ReadyReplicas == 1 {
+	if dep.Status.ReadyReplicas == *p.Spec.Replicas {
 		p.Status = v2alpha1.ComponentStatus{
 			Ready: true,
 		}

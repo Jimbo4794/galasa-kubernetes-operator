@@ -26,7 +26,7 @@ func (c *Cps) getPersistentVolumeClaim() *corev1.PersistentVolumeClaim {
 			},
 		},
 	}
-
 	p.SetGroupVersionKind(schema.FromAPIVersionAndKind("v1", "PersistentVolumeClaim"))
+
 	return p
 }

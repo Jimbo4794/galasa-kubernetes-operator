@@ -2,7 +2,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: config-logging
-  namespace: jdavies47
+  namespace: jadecarino
   labels:
     app.kubernetes.io/instance: default
     app.kubernetes.io/part-of: galasa

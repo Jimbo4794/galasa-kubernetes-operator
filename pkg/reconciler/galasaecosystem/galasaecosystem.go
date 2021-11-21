@@ -3,7 +3,13 @@ package galasaecosystem
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
+
+	"go.etcd.io/etcd/clientv3"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
 
 	ecosystem "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/apis/galasaecosystem"
 	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/apis/galasaecosystem/v2alpha1"
@@ -13,6 +19,7 @@ import (
 	pkgreconciler "knative.dev/pkg/reconciler"
 
 	galasaecosystem "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/clientset/versioned"
+	"github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/clientset/versioned/scheme"
 	galasaecosystemlisters "github.com/Jimbo4794/galasa-kubernetes-operator/pkg/client/listers/galasaecosystem/v2alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -40,12 +47,18 @@ type Reconciler struct {
 	Resmon           *v2alpha1.GalasaResmonComponent
 	EngineController *v2alpha1.GalasaEngineControllerComponent
 	Toolbox          *v2alpha1.GalasaToolboxComponent
+	Namespace        string
+
+	// cpsClient clientv3.
 }
 
 func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEcosystem) pkgreconciler.Event {
 	// p.validate - Needs this to check all components are created and in p
 	logger := logging.FromContext(ctx)
 	selector := labels.NewSelector().Add(mustNewRequirement("galasa-ecosystem-name", selection.Equals, []string{p.Name}))
+	c.Namespace = p.Namespace
+
+	// c.cpsClient = cli
 
 	// Validate
 	logger.Infof("Validating")
@@ -68,11 +81,25 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, p *v2alpha1.GalasaEcosys
 		return err
 	}
 
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{c.Cps.Status.StatusParms["cpsuri"]},
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		return controller.NewPermanentError(fmt.Errorf("failed to create client for cps: %v", err))
+	}
+	defer cli.Close()
+
+	cli.KV.Put(ctx, "framework.credentials.store", "etcd:"+c.Cps.Status.StatusParms["cpsuri"])
+	cli.KV.Put(ctx, "framework.dynamicstatus.store", "etcd:"+c.Cps.Status.StatusParms["cpsuri"])
+
 	logger.Info("Managing RAS")
 	err = c.ManageRas(ctx, p, selector)
 	if err != nil {
 		return err
 	}
+
+	cli.KV.Put(ctx, "framework.resultarchive.store", "couchdb:"+c.Ras.Status.StatusParms["rasuri"])
 
 	logger.Info("Managing API")
 	err = c.ManageApi(ctx, p, selector)
@@ -133,6 +160,7 @@ func (c *Reconciler) ManageCps(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 			},
 			Spec: v2alpha1.ComponentSpec{
 				Image:            cpsSpec.Image,
+				Replicas:         cpsSpec.Replicas,
 				ImagePullPolicy:  cpsSpec.ImagePullPolicy,
 				Storage:          cpsSpec.Storage,
 				StorageClassName: cpsSpec.StorageClassName,
@@ -162,6 +190,7 @@ func (c *Reconciler) ManageCps(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 		l.Infof("CPS changes detected")
 		cpsUpdate := cpslist[0]
 		cpsUpdate.Spec.Image = cpsSpec.Image
+		cpsUpdate.Spec.Replicas = cpsSpec.Replicas
 		cpsUpdate.Spec.ImagePullPolicy = cpsSpec.ImagePullPolicy
 		cpsUpdate.Spec.Storage = cpsSpec.Storage
 		cpsUpdate.Spec.StorageClassName = cpsSpec.StorageClassName
@@ -207,10 +236,14 @@ func (c *Reconciler) ManageRas(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 			},
 			Spec: v2alpha1.ComponentSpec{
 				Image:            rasSpec.Image,
+				Replicas:         rasSpec.Replicas,
 				ImagePullPolicy:  rasSpec.ImagePullPolicy,
 				Storage:          rasSpec.Storage,
 				StorageClassName: rasSpec.StorageClassName,
 				NodeSelector:     rasSpec.NodeSelector,
+				ComponentParms: map[string]string{
+					"hostname": p.Spec.Hostname,
+				},
 			},
 		}
 		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaRasComponents(p.Namespace).Create(ctx, ras, v1.CreateOptions{})
@@ -232,6 +265,7 @@ func (c *Reconciler) ManageRas(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 	if ras.HasChanged(rasSpec) {
 		rasUpdate := raslist[0]
 		rasUpdate.Spec.Image = rasSpec.Image
+		rasUpdate.Spec.Replicas = rasSpec.Replicas
 		rasUpdate.Spec.ImagePullPolicy = rasSpec.ImagePullPolicy
 		rasUpdate.Spec.Storage = rasSpec.Storage
 		rasUpdate.Spec.StorageClassName = rasSpec.StorageClassName
@@ -277,6 +311,7 @@ func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 			},
 			Spec: v2alpha1.ComponentSpec{
 				Image:            apiSpec.Image,
+				Replicas:         apiSpec.Replicas,
 				ImagePullPolicy:  apiSpec.ImagePullPolicy,
 				Storage:          apiSpec.Storage,
 				StorageClassName: apiSpec.StorageClassName,
@@ -307,6 +342,7 @@ func (c *Reconciler) ManageApi(ctx context.Context, p *v2alpha1.GalasaEcosystem,
 	if api.HasChanged(apiSpec) {
 		apiUpdate := apilist[0]
 		apiUpdate.Spec.Image = apiSpec.Image
+		apiUpdate.Spec.Replicas = apiSpec.Replicas
 		apiUpdate.Spec.ImagePullPolicy = apiSpec.ImagePullPolicy
 		apiUpdate.Spec.Storage = apiSpec.Storage
 		apiUpdate.Spec.StorageClassName = apiSpec.StorageClassName
@@ -352,6 +388,7 @@ func (c *Reconciler) ManageMetrics(ctx context.Context, p *v2alpha1.GalasaEcosys
 			},
 			Spec: v2alpha1.ComponentSpec{
 				Image:           metricsSpec.Image,
+				Replicas:        metricsSpec.Replicas,
 				ImagePullPolicy: metricsSpec.ImagePullPolicy,
 				NodeSelector:    metricsSpec.NodeSelector,
 			},
@@ -375,6 +412,7 @@ func (c *Reconciler) ManageMetrics(ctx context.Context, p *v2alpha1.GalasaEcosys
 	if metrics.HasChanged(metricsSpec) {
 		metricsUpdate := metricslist[0]
 		metricsUpdate.Spec.Image = metricsSpec.Image
+		metricsUpdate.Spec.Replicas = metricsSpec.Replicas
 		metricsUpdate.Spec.ImagePullPolicy = metricsSpec.ImagePullPolicy
 		metricsUpdate.Spec.NodeSelector = metricsSpec.NodeSelector
 		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaMetricsComponents(p.Namespace).Update(ctx, metricsUpdate, v1.UpdateOptions{})
@@ -418,6 +456,7 @@ func (c *Reconciler) ManageResmon(ctx context.Context, p *v2alpha1.GalasaEcosyst
 			},
 			Spec: v2alpha1.ComponentSpec{
 				Image:           resmonSpec.Image,
+				Replicas:        resmonSpec.Replicas,
 				ImagePullPolicy: resmonSpec.ImagePullPolicy,
 				NodeSelector:    resmonSpec.NodeSelector,
 			},
@@ -441,6 +480,7 @@ func (c *Reconciler) ManageResmon(ctx context.Context, p *v2alpha1.GalasaEcosyst
 	if resmon.HasChanged(resmonSpec) {
 		resmonUpdate := resmonlist[0]
 		resmonUpdate.Spec.Image = resmonSpec.Image
+		resmonUpdate.Spec.Replicas = resmonSpec.Replicas
 		resmonUpdate.Spec.ImagePullPolicy = resmonSpec.ImagePullPolicy
 		resmonUpdate.Spec.NodeSelector = resmonSpec.NodeSelector
 		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaResmonComponents(p.Namespace).Update(ctx, resmonUpdate, v1.UpdateOptions{})
@@ -484,6 +524,7 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 			},
 			Spec: v2alpha1.ComponentSpec{
 				Image:           enginecontrollerSpec.Image,
+				Replicas:        enginecontrollerSpec.Replicas,
 				ImagePullPolicy: enginecontrollerSpec.ImagePullPolicy,
 				NodeSelector:    enginecontrollerSpec.NodeSelector,
 				ComponentParms: map[string]string{
@@ -510,6 +551,7 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 	if enginecontroller.HasChanged(enginecontrollerSpec) {
 		enginecontrollerUpdate := enginecontrollerlist[0]
 		enginecontrollerUpdate.Spec.Image = enginecontrollerSpec.Image
+		enginecontrollerUpdate.Spec.Replicas = enginecontrollerSpec.Replicas
 		enginecontrollerUpdate.Spec.ImagePullPolicy = enginecontrollerSpec.ImagePullPolicy
 		enginecontrollerUpdate.Spec.NodeSelector = enginecontrollerSpec.NodeSelector
 		i, err := c.GalasaEcosystemClientSet.GalasaV2alpha1().GalasaEngineControllerComponents(p.Namespace).Update(ctx, enginecontrollerUpdate, v1.UpdateOptions{})
@@ -519,6 +561,55 @@ func (c *Reconciler) ManageEngineController(ctx context.Context, p *v2alpha1.Gal
 		}
 	}
 	return nil
+}
+
+func (c *Reconciler) LoadProperty(key, value string) error {
+	cmd := []string{"sh", "-c", "etcdctl", "put", key, value}
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("Failed to get config: %v", err)
+	}
+	c.KubeClientSet.CoreV1().RESTClient().Post().Resource("pods").Name(c.Cps.Name + "-0").Namespace(c.Namespace).SubResource("exec")
+	req := c.KubeClientSet.CoreV1().RESTClient().Post().Resource("pods").Name(c.Cps.Name + "-0").Namespace(c.Namespace).SubResource("exec")
+	option := &corev1.PodExecOptions{
+		Command: cmd,
+		Stdin:   false,
+		Stdout:  true,
+		Stderr:  true,
+		TTY:     true,
+	}
+	req.VersionedParams(
+		option,
+		scheme.ParameterCodec,
+	)
+	// reqs := &http.Request{
+	// 	URL: &url.URL{
+	// 		Path: "",
+	// 	},
+	// }
+	// reqs.FormValue(api.ExecStdinParam)
+	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+	if err != nil {
+		return fmt.Errorf("Failed to get Executor: %v", err)
+	}
+	if os.Stdout == nil {
+		fmt.Errorf("Failed to get stdout nil")
+	}
+	if os.Stderr == nil {
+		fmt.Errorf("Failed to get stdout nil")
+	}
+	exec.Stream(remotecommand.StreamOptions{})
+	err = exec.Stream(remotecommand.StreamOptions{
+		Stdin:  nil,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to stream: %v", err)
+	}
+	return nil
+
 }
 
 func mustNewRequirement(key string, op selection.Operator, vals []string) labels.Requirement {

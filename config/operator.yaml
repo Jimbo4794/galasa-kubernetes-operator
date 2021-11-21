@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: galasa-ecosystem-operator
-  namespace: jdavies47
+  namespace: jadecarino
 spec:
   replicas: 1
   selector:
@@ -30,7 +30,7 @@ spec:
         image: ko://github.com/Jimbo4794/galasa-kubernetes-operator/cmd/operator
         args:
           - "-namespace"
-          - "jdavies47"
+          - "jadecarino"
         env:
         - name: METRICS_DOMAIN
           value: galasa.dev/ecosystem
